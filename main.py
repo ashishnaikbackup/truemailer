@@ -22,7 +22,7 @@ import socket
 import asyncio
 import httpx
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException, Header
+from fastapi import FastAPI, Request, HTTPException, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
