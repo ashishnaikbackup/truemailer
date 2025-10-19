@@ -280,6 +280,20 @@ async def status():
 
 @app.post("/verify")
 async def verify_endpoint(req: Request, x_api_key: Optional[str] = Header(None)):
+
+    
+        blocked_domains = [
+        "denipl.com",
+        "forexzig.com",
+        "denipl.net"
+    ]
+    email = data.get("email", "").lower()
+    domain = email.split("@")[-1] if "@" in email else ""
+
+    if domain in blocked_domains:
+        return {"status": "blocked", "reason": "Disposable domain detected"}
+
+    
     """
     Accepts JSON body: { "email": "someone@domain.tld" }
     Optional header 'x-api-key' or client may include "api_key" in body.
