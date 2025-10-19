@@ -280,6 +280,64 @@ async def status():
 
 @app.post("/verify")
 async def verify_endpoint(req: Request, x_api_key: Optional[str] = Header(None)):
+    """
+    Accepts JSON body: { "email": "someone@domain.tld" }
+    Optional header 'x-api-key' or client may include "api_key" in body.
+    """
+
+    payload = await req.json()
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    email = email.lower().strip()
+    domain = email.split("@")[-1] if "@" in email else ""
+
+    # --- Custom Blocklist Protection ---
+    hard_blocked = ["denipl.com", "forexzig.com", "denipl.net"]
+    if domain in hard_blocked:
+        return {
+            "email": email,
+            "valid": False,
+            "is_disposable": True,
+            "reason": "Blocked disposable domain (TrueMailer custom rule)",
+            "mx": False
+        }
+
+    # --- API Key handling ---
+    key = x_api_key or payload.get("api_key") or payload.get("key")
+    client_id, client_data = get_client_by_key(key) if key else (None, None)
+
+    if client_id:
+        limit = client_data.get("limit_per_day", 250)
+        used = usage_for_today(client_id)
+        if used >= limit:
+            raise HTTPException(status_code=429, detail="daily limit exceeded")
+
+    # --- Evaluate email normally ---
+    try:
+        res = await evaluate_email(email)
+    except Exception as e:
+        return {
+            "email": email,
+            "valid": False,
+            "is_disposable": True,
+            "reason": f"Internal error: {str(e)}"
+        }
+
+    # Increment usage count if client authenticated
+    if client_id:
+        increment_usage(client_id)
+
+    return {
+        "email": res["email"],
+        "domain": res["domain"],
+        "valid": res["valid"],
+        "is_disposable": res["disposable"],
+        "reason": res["reason"],
+        "mx": res["mx"]
+    }
+
 
     
         blocked_domains = [
