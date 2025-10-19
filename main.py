@@ -337,20 +337,6 @@ async def verify_endpoint(req: Request, x_api_key: Optional[str] = Header(None))
         "reason": res["reason"],
         "mx": res["mx"]
     }
-
-
-    
-        blocked_domains = [
-        "denipl.com",
-        "forexzig.com",
-        "denipl.net"
-    ]
-    email = data.get("email", "").lower()
-    domain = email.split("@")[-1] if "@" in email else ""
-
-    if domain in blocked_domains:
-        return {"status": "blocked", "reason": "Disposable domain detected"}
-
     
     """
     Accepts JSON body: { "email": "someone@domain.tld" }
@@ -438,18 +424,3 @@ async def update_lists(payload: Dict[str, Any]):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=DEFAULT_PORT, reload=False)
-
-# --- Extra domain block patch (TrueMailer custom protection) ---
-@app.post("/extra-domain-check")
-async def extra_domain_check(data: dict = Body(...)):
-    email = data.get("email", "")
-    extra_blocked = ["denipl.com", "forexzig.com", "denipl.net"]
-
-    if "@" not in email:
-        return {"valid": False, "reason": "Invalid email format"}
-
-    email_domain = email.split("@")[-1].lower().strip()
-    if any(email_domain.endswith(bad) for bad in extra_blocked):
-        return {"valid": False, "reason": "Blocked disposable domain detected"}
-
-    return {"valid": True, "reason": "Domain not in extra blocklist"}
