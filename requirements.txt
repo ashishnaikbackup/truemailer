@@ -15,3 +15,7 @@ requests
 jinja2
 python-dotenv
 email-validator
+fastapi
+uvicorn
+pydantic[email]
+httpx
