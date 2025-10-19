@@ -366,3 +366,18 @@ async def update_lists(payload: Dict[str, Any]):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=DEFAULT_PORT, reload=False)
+
+# --- Extra domain block patch (TrueMailer custom protection) ---
+@app.post("/extra-domain-check")
+async def extra_domain_check(data: dict = Body(...)):
+    email = data.get("email", "")
+    extra_blocked = ["denipl.com", "forexzig.com", "denipl.net"]
+
+    if "@" not in email:
+        return {"valid": False, "reason": "Invalid email format"}
+
+    email_domain = email.split("@")[-1].lower().strip()
+    if any(email_domain.endswith(bad) for bad in extra_blocked):
+        return {"valid": False, "reason": "Blocked disposable domain detected"}
+
+    return {"valid": True, "reason": "Domain not in extra blocklist"}
