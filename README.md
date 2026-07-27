@@ -7,7 +7,7 @@
 ---
 
 ## 🌍 Web
-`https://ashishnaikbackup.github.io/website/`
+`https://ashishnaikbackup.github.io/truemailer-web/`
 
 ---
 
