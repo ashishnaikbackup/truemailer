@@ -6,8 +6,8 @@
 
 ---
 
-## 🌍 API Base
-`https://truemailer-api.onrender.com/`
+## 🌍 Web
+`https://ashishnaikbackup.github.io/website/`
 
 ---
 
