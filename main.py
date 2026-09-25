@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import dns.resolver
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
@@ -36,7 +36,7 @@ PROVIDERS = {
 
 
 def load_domains(path: str) -> set[str]:
-    """Load either newline-separated domains or a JSON array/object of domains."""
+    """Load newline-separated domains or a JSON array/object of domains."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw = f.read().strip()
@@ -80,7 +80,7 @@ CLIENTS = load_json(CLIENTS_FILE, {
     "demo": {"key": "demo_key_123", "name": "Demo Client", "limit_per_day": 250, "usage": {}}
 })
 
-app = FastAPI(title="Truemailer API", version="2.0.0")
+app = FastAPI(title="Truemailer API", version="2.0.1")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -122,7 +122,7 @@ def increment_usage(client_id: str) -> None:
 
 
 def dns_check(domain: str) -> tuple[bool, bool, list[str]]:
-    """Return (domain_resolves, has_mx, mx_hosts). A fallback A/AAAA record is not called MX."""
+    """Return (domain_resolves, has_mx, mx_hosts)."""
     resolver = dns.resolver.Resolver()
     resolver.lifetime = 3.0
     resolver.timeout = 2.0
@@ -188,7 +188,7 @@ async def evaluate_email(email: str) -> Dict[str, Any]:
         "is_disposable": False, "disposable": False, "provider": provider,
         "syntax_valid": True, "domain_exists": False, "mx": False,
         "mx_hosts": [], "blocklisted": blocklisted, "allowlisted": allowlisted,
-        "suspicious_indicators": [], "trust_score": 0, "reason": ""
+        "suspicious_indicators": [], "trust_score": 0, "score": 0, "reason": ""
     }
 
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -228,6 +228,7 @@ async def evaluate_email(email: str) -> Dict[str, Any]:
         remote_disposable=remote
     )
     result["trust_score"] = score
+    result["score"] = score
     result["valid"] = resolves and (has_mx or allowlisted)
     if result["valid"]:
         result["reason"] = "Domain resolves and accepts email via MX" if has_mx else "Allowlisted domain with DNS resolution"
