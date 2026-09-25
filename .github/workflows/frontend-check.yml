@@ -1,0 +1,30 @@
+name: Frontend smoke check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/index.html'
+      - 'cloudflare/worker.js'
+      - 'wrangler.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate frontend assets
+        run: |
+          test -s frontend/index.html
+          test -s cloudflare/worker.js
+          test -s wrangler.toml
+          grep -q 'id="demo-form"' frontend/index.html
+          grep -q 'truemailer-api.onrender.com/verify' frontend/index.html
+          grep -q '/verify' cloudflare/worker.js
+          grep -q 'directory = "./frontend"' wrangler.toml
