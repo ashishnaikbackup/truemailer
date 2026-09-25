@@ -1,48 +1,28 @@
-# Truemailer — Email Validation API
+# Truemailer — Email Trust Analysis API
 
-**Developer:** Ashish Naik  
-**Version:** v1.0.0 (Final Release)  
-**Deployment:** Render + Cloudflare Workers
+Truemailer is an email verification and trust-analysis service for detecting disposable addresses, checking DNS/MX infrastructure, identifying providers, and explaining why an address received its result.
 
----
+## Current architecture
 
-## 🌐 Live Demo
+- **Main repo:** `truemailer` — canonical backend, verification engine, and verification data.
+- **Production web:** `truemailer-web` — existing Cloudflare/GitHub Pages frontend. Kept separate so the live deployment is not disrupted.
+- **Legacy blocklist repo:** `truemailer-blocklist-data` — not used by the production API; its useful data has been consolidated into the main repo.
+- **API hosting:** existing Render deployment.
+- **Frontend hosting:** existing Cloudflare/GitHub Pages deployment.
 
-👉 **https://ashishnaikbackup.github.io/truemailer-web/**
+The existing Render API URL is intentionally unchanged:
 
-Validate email addresses instantly using the web interface.
-
----
-
-## 🚀 API
-
-**Base URL**
-
-```
+```text
 https://truemailer-api.onrender.com
 ```
 
-### Verify Email
+## Verification endpoint
 
-**Endpoint**
-
-```
+```text
 POST /verify
 ```
 
-**Full URL**
-
-```
-https://truemailer-api.onrender.com/verify
-```
-
-**Headers**
-
-```
-Content-Type: application/json
-```
-
-**Request Body**
+Request:
 
 ```json
 {
@@ -50,80 +30,90 @@ Content-Type: application/json
 }
 ```
 
----
+The endpoint also accepts an optional `X-API-Key` header or `api_key` request field for client usage limits.
 
-## 📥 cURL Example
+## Verification result
 
-```bash
-curl -X POST https://truemailer-api.onrender.com/verify \
--H "Content-Type: application/json" \
--d "{\"email\":\"user@example.com\"}"
-```
+The current response can include:
 
----
+- `valid` — overall verification result
+- `syntax_valid` — email syntax check
+- `domain_exists` — DNS resolution result
+- `mx` — real MX-record availability
+- `mx_hosts` — discovered MX hosts
+- `is_disposable` / `disposable` — disposable-domain result
+- `blocklisted` — local blocklist match
+- `allowlisted` — local allowlist match
+- `provider` — recognized mail provider
+- `suspicious_indicators` — reasons for concern
+- `trust_score` / `score` — 0–100 trust score
+- `reason` — human-readable explanation
+- `remote_disposable` — optional external disposable signal
 
-## 📤 Example Response
+Example:
 
 ```json
 {
   "email": "user@example.com",
+  "domain": "example.com",
   "valid": true,
+  "syntax_valid": true,
+  "domain_exists": true,
   "mx": true,
-  "disposable": false,
-  "score": 98
+  "mx_hosts": ["mail.example.com"],
+  "is_disposable": false,
+  "blocklisted": false,
+  "allowlisted": false,
+  "provider": null,
+  "suspicious_indicators": [],
+  "trust_score": 85,
+  "score": 85,
+  "reason": "Domain resolves and accepts email via MX"
 }
 ```
 
----
+## Checks performed
 
-## ✨ Features
+1. Syntax validation
+2. DNS domain resolution
+3. Real MX-record lookup
+4. Disposable/temporary-domain detection
+5. Local blocklist and allowlist checks
+6. Known provider detection
+7. Suspicious-domain indicators
+8. Trust/risk scoring
+9. Human-readable reason
+10. Optional external disposable-domain signal
 
-- ✅ Email syntax validation
-- ✅ MX record verification
-- ✅ Disposable email detection
-- ✅ Confidence score
-- ✅ Fast REST API
-- ✅ JSON responses
-- ✅ CORS enabled
-- ✅ Free web interface
+## Data layout
 
----
-
-## 🛠️ Tech Stack
-
-- Node.js
-- Express.js
-- Cloudflare Workers
-- Render
-- HTML
-- CSS
-- JavaScript
-
----
-
-## 📁 Project Structure
-
-```
+```text
 truemailer/
-├── api/
-├── public/
-├── worker/
-├── package.json
+├── main.py
+├── blocklist/
+│   └── blocklist.txt
+├── allowlist/
+│   └── allowlist.json
+├── clients.json
+├── frontend/
+│   └── index.html
+├── ARCHITECTURE.md
 └── README.md
 ```
 
----
+## Deployment
 
-## 📄 License
+No hosting migration is required for the current architecture. Keep the existing Render service and existing Cloudflare/GitHub Pages frontend URL while the consolidated main repository is developed and tested.
+
+## Safety notes
+
+Do not commit production secrets, admin tokens, private API keys, or real customer data. Configure `TRUEMAILER_ADMIN_TOKEN` and other deployment secrets through the hosting provider's secret/environment-variable settings.
+
+## License
 
 MIT License
 
----
+## Developer
 
-## 👨‍💻 Developer
-
-**Ashish Naik**
-
+Ashish Naik  
 GitHub: https://github.com/ashishnaikbackup
-
-Live Demo: https://ashishnaikbackup.github.io/truemailer-web/
