@@ -24,7 +24,7 @@ jobs:
           test -s frontend/index.html
           test -s cloudflare/worker.js
           test -s wrangler.toml
-          grep -q 'id="demo-form"' frontend/index.html
+          grep -q 'id="form"' frontend/index.html
           grep -q 'truemailer-api.onrender.com/verify' frontend/index.html
           grep -q '/verify' cloudflare/worker.js
           grep -q 'directory = "./frontend"' wrangler.toml
