@@ -2,15 +2,20 @@
 
 Truemailer is an email verification and trust-analysis service for detecting disposable addresses, checking DNS/MX infrastructure, identifying providers, and explaining why an address received its result.
 
-## Current architecture
+## Live
 
-The project is now consolidated around the **`truemailer`** repository.
+**Web verifier:** https://truemailer.sanchananaik1046.workers.dev/
+
+**API:** https://truemailer-api.onrender.com
+
+Truemailer is now consolidated into this single repository. The web verifier, Cloudflare edge layer, verification engine, and blocklist/allowlist data are maintained here.
+
+## Current architecture
 
 - **Main repo:** `truemailer` — canonical backend, verification engine, blocklist/allowlist data, Cloudflare Worker and frontend.
 - **API hosting:** existing Render deployment.
 - **Frontend/edge hosting:** existing Cloudflare Worker + Workers Assets deployment from this repository.
-- **Legacy `truemailer-web`:** no longer required as the production source after the consolidated deployment is verified.
-- **Legacy `truemailer-blocklist-data`:** its useful disposable-domain data has been consolidated into `blocklist/blocklist.txt`.
+- **Legacy repositories:** retired after the consolidated deployment was verified.
 
 The production API URL remains unchanged:
 
@@ -68,6 +73,10 @@ The response can include:
 ## Frontend
 
 The frontend lives at `frontend/index.html` and is served through Cloudflare Workers Assets. The Cloudflare Worker in `cloudflare/worker.js` keeps the Render API behind the same edge deployment for `/verify`, `/status`, and `/health` while serving the frontend for other routes.
+
+Open the live verifier here:
+
+**https://truemailer.sanchananaik1046.workers.dev/**
 
 The verifier deliberately renders API failures on the same page instead of navigating back to the beginning.
 
