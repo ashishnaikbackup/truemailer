@@ -82,13 +82,8 @@ CLIENTS = load_json(CLIENTS_FILE, {
 
 app = FastAPI(title="Truemailer API", version="2.0.1")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-Key"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
+                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "X-API-Key"])
 
 
 class VerifyRequest(BaseModel):
@@ -121,19 +116,23 @@ def increment_usage(client_id: str) -> None:
         pass
 
 
+def refresh_lists() -> None:
+    global BLOCKSET, ALLOWSET
+    BLOCKSET = load_domains(BLOCKLIST_LOCAL)
+    ALLOWSET = load_domains(ALLOWLIST_LOCAL)
+
+
 def dns_check(domain: str) -> tuple[bool, bool, list[str]]:
-    """Return (domain_resolves, has_mx, mx_hosts)."""
     resolver = dns.resolver.Resolver()
     resolver.lifetime = 3.0
     resolver.timeout = 2.0
-    has_mx = False
     mx_hosts: list[str] = []
     try:
         answers = resolver.resolve(domain, "MX")
         mx_hosts = sorted({str(a.exchange).rstrip(".") for a in answers})
-        has_mx = bool(mx_hosts)
     except Exception:
         pass
+    has_mx = bool(mx_hosts)
     resolves = has_mx
     if not resolves:
         for record_type in ("A", "AAAA"):
@@ -147,13 +146,11 @@ def dns_check(domain: str) -> tuple[bool, bool, list[str]]:
 
 
 async def remote_disposable_check(domain: str) -> Optional[bool]:
-    """Best-effort external signal. Unknown is treated as unknown, never disposable."""
     try:
         async with httpx.AsyncClient(timeout=3.5) as client:
             response = await client.get(f"https://open.kickbox.com/v1/disposable/{domain}")
             if response.status_code == 200:
-                payload = response.json()
-                value = payload.get("disposable")
+                value = response.json().get("disposable")
                 return bool(value) if isinstance(value, bool) else None
     except Exception:
         return None
@@ -176,36 +173,31 @@ def calculate_score(*, syntax: bool, resolves: bool, mx: bool, disposable: bool,
 
 
 async def evaluate_email(email: str) -> Dict[str, Any]:
+    refresh_lists()
     email = str(email).strip().lower()
     domain = email.rsplit("@", 1)[-1] if "@" in email else ""
     provider = PROVIDERS.get(domain)
     allowlisted = domain in ALLOWSET
     blocklisted = domain in BLOCKSET
     pattern = next((p for p in TEMP_PATTERNS if p in domain), None)
-
     result: Dict[str, Any] = {
-        "email": email, "domain": domain, "valid": False,
-        "is_disposable": False, "disposable": False, "provider": provider,
-        "syntax_valid": True, "domain_exists": False, "mx": False,
-        "mx_hosts": [], "blocklisted": blocklisted, "allowlisted": allowlisted,
-        "suspicious_indicators": [], "trust_score": 0, "score": 0, "reason": ""
+        "email": email, "domain": domain, "valid": False, "is_disposable": False,
+        "disposable": False, "provider": provider, "syntax_valid": True,
+        "domain_exists": False, "mx": False, "mx_hosts": [], "blocklisted": blocklisted,
+        "allowlisted": allowlisted, "suspicious_indicators": [], "trust_score": 0, "score": 0, "reason": ""
     }
-
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         result.update(syntax_valid=False, reason="Invalid email syntax")
         result["suspicious_indicators"] = ["Invalid email format"]
         return result
-
     if blocklisted:
         result.update(is_disposable=True, disposable=True, reason="Domain found in local disposable blocklist")
         result["suspicious_indicators"].append("Blocklisted domain")
         return result
-
     if pattern:
         result.update(is_disposable=True, disposable=True, reason=f"Disposable pattern matched: {pattern}")
         result["suspicious_indicators"].append(f"Disposable-looking domain pattern: {pattern}")
         return result
-
     resolves, has_mx, mx_hosts = await asyncio.to_thread(dns_check, domain)
     result.update(domain_exists=resolves, mx=has_mx, mx_hosts=mx_hosts)
     if not resolves:
@@ -214,31 +206,27 @@ async def evaluate_email(email: str) -> Dict[str, Any]:
         return result
     if not has_mx:
         result["suspicious_indicators"].append("No MX record found")
-
     remote = await remote_disposable_check(domain)
     result["remote_disposable"] = remote
     if remote is True:
         result.update(is_disposable=True, disposable=True, reason="Marked disposable by external disposable-domain check")
         result["suspicious_indicators"].append("External disposable signal")
         return result
-
-    score = calculate_score(
-        syntax=True, resolves=resolves, mx=has_mx, disposable=False,
-        blocklisted=False, allowlisted=allowlisted, provider=provider,
-        remote_disposable=remote
-    )
+    score = calculate_score(syntax=True, resolves=resolves, mx=has_mx, disposable=False,
+                            blocklisted=False, allowlisted=allowlisted, provider=provider,
+                            remote_disposable=remote)
     result["trust_score"] = score
     result["score"] = score
     result["valid"] = resolves and (has_mx or allowlisted)
-    if result["valid"]:
-        result["reason"] = "Domain resolves and accepts email via MX" if has_mx else "Allowlisted domain with DNS resolution"
-    else:
-        result["reason"] = "Domain exists but no MX record was found"
+    result["reason"] = ("Domain resolves and accepts email via MX" if has_mx else
+                         "Allowlisted domain with DNS resolution" if allowlisted else
+                         "Domain exists but no MX record was found")
     return result
 
 
 @app.get("/status")
 async def status():
+    refresh_lists()
     return {"ok": True, "version": app.version, "block_count": len(BLOCKSET), "allow_count": len(ALLOWSET), "clients": len(CLIENTS)}
 
 
@@ -250,7 +238,6 @@ async def verify_endpoint(req: VerifyRequest, x_api_key: Optional[str] = Header(
         limit = int(client_data.get("limit_per_day", 250))
         if usage_today(client_id) >= limit:
             raise HTTPException(status_code=429, detail="daily limit exceeded")
-
     result = await evaluate_email(str(req.email))
     if client_id:
         increment_usage(client_id)
@@ -278,11 +265,5 @@ async def update_lists(payload: Dict[str, Any], x_admin_token: Optional[str] = H
         json.dump(allow, f, indent=2)
     with open(BLOCKLIST_LOCAL, "w", encoding="utf-8") as f:
         f.write("\n".join(block) + ("\n" if block else ""))
-    global ALLOWSET, BLOCKSET
-    ALLOWSET, BLOCKSET = set(allow), set(block)
-    return {"updated": True, "allow_count": len(ALLOWSET), "block_count": len(BLOCKSET)}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=DEFAULT_PORT)
+    refresh_lists()
+    return {"ok": True, "block_count": len(BLOCKSET), "allow_count": len(ALLOWSET)}
