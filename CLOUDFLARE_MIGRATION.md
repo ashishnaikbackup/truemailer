@@ -1,25 +1,42 @@
-# Cloudflare consolidation plan
+# Cloudflare consolidation status
 
-The production Cloudflare service should not be switched until the current Render API and UptimeRobot monitor are stable.
+The Cloudflare Worker has now been connected to the canonical `ashishnaikbackup/truemailer` repository and the consolidated frontend has been deployed successfully.
 
-## Target architecture
+## Current architecture
 
 - GitHub: `ashishnaikbackup/truemailer` is the single source repository.
 - `frontend/`: production website assets.
-- `cloudflare/worker.js`: edge proxy for `/verify`, `/status`, and `/health`.
+- `cloudflare/worker.js`: edge proxy for `/verify`, `/status`, and `/health` plus Workers Assets frontend serving.
 - Render: `truemailer-api` remains the verification backend at `https://truemailer-api.onrender.com`.
-- UptimeRobot: monitor `https://truemailer-api.onrender.com/health` every 5 minutes.
+- UptimeRobot: monitors `https://truemailer-api.onrender.com/health` every 5 minutes.
+- GitHub Actions: `render-keepalive.yml` also pings the Render health endpoint every five minutes with retries.
 
-## Cloudflare switch
+## Verified production behavior
 
-When ready, configure the existing Cloudflare Worker/Pages deployment to use this repository and deploy the included `wrangler.toml` configuration. It uses Workers Assets to serve `frontend/` and keeps API routes pointed at the existing Render service.
+The consolidated Cloudflare deployment has been manually tested with:
 
-Before switching production:
+1. A normal Gmail address — DNS/MX/provider/blocklist/disposable checks returned successfully.
+2. `test@mailinator.com` — disposable and blocklisted detection returned correctly.
+3. A deliberately nonexistent domain — DNS/MX failure and low trust result returned correctly.
 
-1. Confirm Render `/health` returns 2xx and UptimeRobot is Up.
-2. Preview the new Cloudflare deployment.
-3. Test `/`, `/verify`, and `/health`.
-4. Test Gmail, a known disposable domain, and a nonexistent domain.
-5. Only then switch the production route/domain.
-6. Keep `truemailer-web` intact until the production switch has been verified.
-7. After verification, `truemailer-web` can be archived rather than immediately deleted.
+The frontend keeps verification results and API errors on the same page instead of navigating back to the start.
+
+## Legacy repositories
+
+`truemailer-blocklist-data` is no longer required by the production API because its useful data has been consolidated into the main repository.
+
+`truemailer-web` should remain available as a rollback/reference copy until the final public production route/custom domain has been confirmed on the consolidated Cloudflare deployment. After that confirmation, archive the repository rather than deleting it immediately.
+
+## Final production checklist
+
+- [x] Main repository contains backend, data, frontend and Cloudflare Worker.
+- [x] Cloudflare is connected to `main`.
+- [x] Workers Assets serves `frontend/`.
+- [x] Render API URL remains unchanged.
+- [x] Gmail verification tested.
+- [x] Disposable/blocklist verification tested.
+- [x] Nonexistent-domain verification tested.
+- [x] UptimeRobot health monitor is currently Up.
+- [x] GitHub keepalive added for Render cold-start protection.
+- [ ] Confirm the public/custom domain, if one is used, points to the consolidated deployment.
+- [ ] Archive `truemailer-web` after the public route is confirmed stable.
