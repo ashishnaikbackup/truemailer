@@ -83,7 +83,7 @@ CLIENTS = load_json(CLIENTS_FILE, {
 app = FastAPI(title="Truemailer API", version="2.0.1")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
-                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "X-API-Key"])
+                   allow_methods=["GET", "HEAD", "POST", "OPTIONS"], allow_headers=["Content-Type", "X-API-Key"])
 
 
 class VerifyRequest(BaseModel):
@@ -224,7 +224,7 @@ async def evaluate_email(email: str) -> Dict[str, Any]:
     return result
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     """Cheap liveness endpoint for Render and external uptime monitors."""
     return {"ok": True, "service": "truemailer-api"}
@@ -257,27 +257,3 @@ async def admin_lists(x_admin_token: Optional[str] = Header(None)):
     refresh_lists()
     return {"blocklist": sorted(BLOCKSET), "allowlist": sorted(ALLOWSET)}
 
-
-@app.post("/admin/blocklist")
-async def add_blocklist(domain: str, x_admin_token: Optional[str] = Header(None)):
-    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
-        raise HTTPException(status_code=401, detail="unauthorized")
-    domain = domain.strip().lower().strip(".")
-    if domain:
-        with open(BLOCKLIST_LOCAL, "a", encoding="utf-8") as f:
-            f.write(domain + "\n")
-        refresh_lists()
-    return {"ok": True, "block_count": len(BLOCKSET)}
-
-
-@app.post("/admin/allowlist")
-async def add_allowlist(domain: str, x_admin_token: Optional[str] = Header(None)):
-    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
-        raise HTTPException(status_code=401, detail="unauthorized")
-    domain = domain.strip().lower().strip(".")
-    if domain:
-        current = sorted(ALLOWSET | {domain})
-        with open(ALLOWLIST_LOCAL, "w", encoding="utf-8") as f:
-            json.dump(current, f, indent=2)
-        refresh_lists()
-    return {"ok": True, "allow_count": len(ALLOWSET)}
