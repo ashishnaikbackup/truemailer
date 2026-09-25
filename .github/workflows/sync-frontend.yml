@@ -1,0 +1,48 @@
+name: Sync Truemailer Web into Main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, '[sync-web]') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Fetch web repository
+        run: git clone --depth 1 https://github.com/ashishnaikbackup/truemailer-web.git /tmp/truemailer-web
+
+      - name: Copy current frontend snapshot
+        run: |
+          mkdir -p frontend
+          cp /tmp/truemailer-web/index.html frontend/index.html
+          cat > frontend/README.md <<'EOF'
+# Truemailer Web
+
+This directory is a synchronized snapshot of the production frontend from `ashishnaikbackup/truemailer-web`.
+
+The separate `truemailer-web` repository remains the deployment source for the existing Cloudflare Pages setup, so the live hosting configuration does not need to change.
+
+To update this snapshot, rerun the **Sync Truemailer Web into Main** workflow.
+EOF
+
+      - name: Commit synchronized frontend
+        run: |
+          git config user.name 'Truemailer Sync Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add frontend
+          if git diff --cached --quiet; then
+            echo 'Frontend already synchronized.'
+          else
+            git commit -m 'Sync production frontend into main [sync-web]'
+            git push
+          fi
