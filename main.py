@@ -224,6 +224,12 @@ async def evaluate_email(email: str) -> Dict[str, Any]:
     return result
 
 
+@app.get("/health")
+async def health():
+    """Cheap liveness endpoint for Render and external uptime monitors."""
+    return {"ok": True, "service": "truemailer-api"}
+
+
 @app.get("/status")
 async def status():
     refresh_lists()
@@ -244,26 +250,34 @@ async def verify_endpoint(req: VerifyRequest, x_api_key: Optional[str] = Header(
     return result
 
 
-def require_admin(token: Optional[str]) -> None:
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
-        raise HTTPException(status_code=404, detail="Not found")
-
-
-@app.get("/admin/clients")
-async def list_clients(x_admin_token: Optional[str] = Header(None)):
-    require_admin(x_admin_token)
-    return {cid: {k: v for k, v in data.items() if k != "key"} for cid, data in CLIENTS.items()}
-
-
-@app.post("/admin/update-lists")
-async def update_lists(payload: Dict[str, Any], x_admin_token: Optional[str] = Header(None)):
-    require_admin(x_admin_token)
-    allow = sorted({str(x).strip().lower() for x in payload.get("allow", []) if str(x).strip()})
-    block = sorted({str(x).strip().lower() for x in payload.get("block", []) if str(x).strip()})
-    os.makedirs(os.path.dirname(ALLOWLIST_LOCAL), exist_ok=True)
-    with open(ALLOWLIST_LOCAL, "w", encoding="utf-8") as f:
-        json.dump(allow, f, indent=2)
-    with open(BLOCKLIST_LOCAL, "w", encoding="utf-8") as f:
-        f.write("\n".join(block) + ("\n" if block else ""))
+@app.get("/admin/lists")
+async def admin_lists(x_admin_token: Optional[str] = Header(None)):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="unauthorized")
     refresh_lists()
-    return {"ok": True, "block_count": len(BLOCKSET), "allow_count": len(ALLOWSET)}
+    return {"blocklist": sorted(BLOCKSET), "allowlist": sorted(ALLOWSET)}
+
+
+@app.post("/admin/blocklist")
+async def add_blocklist(domain: str, x_admin_token: Optional[str] = Header(None)):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    domain = domain.strip().lower().strip(".")
+    if domain:
+        with open(BLOCKLIST_LOCAL, "a", encoding="utf-8") as f:
+            f.write(domain + "\n")
+        refresh_lists()
+    return {"ok": True, "block_count": len(BLOCKSET)}
+
+
+@app.post("/admin/allowlist")
+async def add_allowlist(domain: str, x_admin_token: Optional[str] = Header(None)):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    domain = domain.strip().lower().strip(".")
+    if domain:
+        current = sorted(ALLOWSET | {domain})
+        with open(ALLOWLIST_LOCAL, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2)
+        refresh_lists()
+    return {"ok": True, "allow_count": len(ALLOWSET)}
