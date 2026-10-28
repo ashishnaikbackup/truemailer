@@ -1,10 +1,9 @@
 name: Render keepalive
 
+# Render is currently suspended by the owner. Keep this workflow manual-only
+# until the Render service is resumed; otherwise scheduled pings return 503 and
+# generate repeated GitHub failure emails.
 on:
-  schedule:
-    # Render free services can sleep after inactivity. This lightweight
-    # liveness request keeps the existing API warm and complements UptimeRobot.
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
